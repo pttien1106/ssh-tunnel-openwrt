@@ -1,0 +1,43 @@
+#!/bin/sh /etc/rc.common
+#
+
+START=50
+USE_PROCD=1
+
+ssh_init="/etc/init.d/ssh-tunnel"
+ssh_remoteuser="root"
+ssh_remotesrv="abc.de"
+ssh_remoteport="1111"
+ssh_localport="2222"
+ssh_localip="111.222.333.444"
+ssh_keyfile="/root/.ssh/id_rsa"
+ssh_cmd="ssh -i ${ssh_keyfile} -K 60 -y -N -R ${ssh_localport}:${ssh_localip}:22 ${ssh_remoteuser}@${ssh_remotesrv} -p ${ssh_remoteport}"
+ssh_iface="wan"
+
+boot()
+{
+    ssh_boot=1
+    rc_procd start_service
+}
+
+start_service()
+{
+    if [ $("${ssh_init}" enabled; printf "%u" ${?}) -eq 0 ]
+    then
+        if [ -n "${ssh_boot}" ]
+        then
+            return 0
+        fi
+        procd_open_instance "ssh-tunnel"
+        procd_set_param command ${ssh_cmd}
+        procd_set_param respawn ${respawn_retry:-10} ${respawn_threshold:-10} ${respawn_timeout:-10}
+        procd_set_param stdout 1
+        procd_set_param stderr 1
+        procd_close_instance
+    fi
+}
+
+service_triggers()
+{
+    procd_add_interface_trigger "interface.*" "${ssh_iface}" "${ssh_init}" restart
+}
